@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en-us">
+    <head>
+        <style>
+            #tentbox {
+              overflow: scroll;
+              position: relative;
+              display: flex;
+            }
+            #tentbase {
+              max-width: fit-content;
+              height: fit-content;
+              user-select: none;
+            }
+            #curThumbnails {
+              height: 107px;
+              white-space: nowrap;
+              overflow-x: scroll;
+              overflow-y: hidden;
+              display: flex;
+              align-items: center;
+            }
+            #curThumbnails img{
+              display: inline-block;
+              text-align: center;
+              padding: 10px;
+              user-select: none;
+            }
+            #tentbox img{
+              position: absolute;
+            }
+            #tentFurnitures img{
+              user-select: none;
+              position: absolute;
+              -webkit-touch-callout: none;
+            }
+            #tentFurnitures img:hover{
+              filter: brightness(50%);
+            }
+            #tentFurnitures img.partitionMenu{
+              filter: brightness(30%);
+            }
+            #tentFurnitures img.viewMode{
+              pointer-events: none;
+            }
+            #tentFloor,#tentWall {
+              max-width: fit-content;
+              height: fit-content;
+              user-select: none;
+              -webkit-touch-callout: none;
+            }
+            #bottomButtons {
+              display: flex;
+              justify-content: space-between;
+            }
+            #partitionMenu {
+              position: absolute;
+              visibility: hidden;
+            }
+            #partitionMenu button{
+              position: absolute;
+              width: 23px;
+            }
+            #mainbox {
+              display: flex;
+              flex-direction: column;
+            }
+            body {
+              overscroll-behavior-y: none;
+              overscroll-behavior-x: none;
+            }
+            html {
+              overflow: hidden;
+            }
+        </style>
+    </head>
+    <body>
+        <div id='mainbox'>
+            <div id="selectionBox">
+              <select id="categoryDropDown" onchange="selectCategory(this.value)">
+                <option value="norn_saber">norn saber</option>
+                <option value="animals">animals</option>
+                <option value="bins">bins</option>
+                <option value="carpets">carpets</option>
+                <option value="celebrations">celebrations</option>
+                <option value="gadgets">gadgets</option>
+                <option value="fences">fences</option>
+                <option value="flooring">flooring</option>
+                <option value="flowers">flowers</option>
+                <option value="kitchen">kitchen</option>
+                <option value="lights">lights</option>
+                <option value="maids">maids</option>
+                <option value="partitions">partitions</option>
+                <option value="shelves">shelves</option>
+                <option value="sitables">sitables</option>
+                <option value="statues">statues</option>
+                <option value="tables">tables</option>
+                <option value="toilet">toilet</option>
+                <option value="vehicle">vehicle</option>
+                <option value="wall decors">wall decors</option>
+                <option value="wallpapers" selected>wallpapers</option>
+                <option value="windows">windows</option>
+              </select>
+              <span>
+                <span style="font-size: 8pt;">Mode: </span>
+                <input type="radio" id="viewButton" name="dragMode" checked onchange="updateViewMode()"><label style="font-size: 11pt;" for="viewButton">View </label>
+                <input type="radio" id="dragButton" name="dragMode" onchange="updateViewMode()"><label style="font-size: 11pt;" for="dragButton">Move </label>
+                <input type="radio" id="delButton" name="dragMode" onchange="updateViewMode()"><label style="font-size: 11pt;" for="delButton">Delete</label>
+              </span>
+              <div id="curThumbnails"></div>
+            </div>
+          
+          
+            <div id="tentbox">
+              <img style="height: 570px; position: relative;" />
+              <img id="tentbase" draggable="false" />
+              <img id="tentFloor" draggable="false" />
+              <img id="tentWall" draggable="false" />
+              <div id="tentFurnitures"></div>
+              <div id="partitionMenu">
+                <button id='SW' style="left: -4px;top: 29px;" onclick="extendPillar('SW')">+</button>
+                <button id='SE' style="left: 42px;top: 29px;" onclick="extendPillar('SE')">+</button>
+                <button id='SW' style="left: -4px;top: -13px;" onclick="extendPillar('NW')">+</button>
+                <button id='SE' style="left: 42px;top: -13px;" onclick="extendPillar('NE')">+</button>
+              </div>
+            </div>
+            <div id='bottomButtons'>
+              <button onclick="saveAsPng()">Export to PNG</button>
+              <button onclick="clearTent()">Reset Tent</button>
+            </div>
+          
+            <span id="status"></span>
+        </div>
+          
+        <script>
+            function geid(id){return document.getElementById(id);}
+            function curTimeMs(){return Date.now();}
+            //function s(m){geid('status').innerHTML=m;}
+            const api = "assets";
+            const apiPng = api+"/tent/";
+            var currentCategory;
+            var moving = null;
+            const TB= geid("tentbox");
+            const MB = geid('mainbox');
+            var br = TB.getBoundingClientRect();
+            const TF= geid("tentFurnitures"); 
+            TF.onmousemove = function(e){move(e);}; TF.ontouchmove = function(e){move(e);};
+            const PMenu = geid('partitionMenu');
+            var curPillarToExtend = '';
+            var prevHighlightedFurniture_mousemove = '';
+            var isMobileView = false;
+
+            const catalogData = {
+              'animals': ['8607.png', '8638.png', '8610.png', '8611.png', '8639.png', '8213.png', '8300.png', '8673.png', '8302.png', '8676.png', '8640.png', '8608.png', '8609.png'], 
+              'bins': ['8349.png', '8675.png', '8674.png', '8268.png'], 
+              'carpets': ['8176.png', '8687.png', '8183.png', '8180.png', '8181.png', '8147.png', '8184.png'], 
+              'celebrations': ['8439.png', '8363.png', '8377.png', '8376.png', '8438.png', '8348.png', '8374.png', '8361.png', '8375.png', '8601.png', '8629.png', '8365.png', '8364.png', '8370.png', '8628.png', '8600.png', '8602.png', '8366.png', '8372.png', '8415.png', '8367.png', '8603.png', '8664.png', '8499.png', '8274.png', '8249.png', '8665.png', '8667.png', '8538.png', '8666.png', '8662.png', '8528.png', '8529.png', '8663.png', '8661.png', '8649.png', '8477.png', '8338.png', '8648.png', '8660.png', '8645.png', '8651.png', '8484.png', '8533.png', '8527.png', '8532.png', '8254.png', '8650.png', '8644.png', '8652.png', '8646.png', '8493.png', '8478.png', '8450.png', '8444.png', '8531.png', '8451.png', '8337.png', '8479.png', '8486.png', '8647.png', '8653.png', '8496.png', '8482.png', '8441.png', '8253.png', '8252.png', '8246.png', '8440.png', '8454.png', '8642.png', '8656.png', '8654.png', '8668.png', '8481.png', '8456.png', '8250.png', '8536.png', '8279.png', '8251.png', '8537.png', '8494.png', '8480.png', '8655.png', '8626.png', '8632.png', '8342.png', '8545.png', '8343.png', '8380.png', '8627.png', '8631.png', '8369.png', '8433.png', '8341.png', '8553.png', '8546.png', '8340.png', '8368.png', '8624.png', '8630.png', '8436.png', '8378.png', '8542.png', '8379.png', '8437.png', '8621.png', '8623.png', '8637.png', '8384.png', '8347.png', '8435.png', '8541.png', '8554.png', '8434.png', '8346.png'], 
+              'fences': ['8177.png', '8705.png', '8192.png', '8178.png'], 
+              'flooring': ['7087.png', '7130.png', '9444.png', '9452.png', '9447.png', '9245.png', '9720.png', '9907.png', '9246.png', '9736.png', '9483.png', '9187.png', '9385.png', '9999.png', '9190.png', '9188.png', '9189.png', '7202.png', '9993.png', '7029.png', '7203.png', '9402.png', '9359.png', '9510.png', '9464.png', '7310.png', 'default.png', '9462.png', '9463.png'], 
+              'flowers': ['8565.png', '8599.png', '8328.png', '8738.png', '8739.png', '8329.png', '8712.png', '8282.png', '8283.png', '8334.png', '8690.png', '8333.png', '8327.png', '8284.png', '8737.png', '8736.png', '8285.png', '8326.png', '8332.png', '8330.png', '8734.png', '8735.png', '8331.png', '8154.png', '8155.png', '8620.png', '8740.png', '8150.png'], 
+              'gadgets': ['8149.png', '8175.png', '8174.png', '8162.png', '8360.png', '8163.png', '8205.png', '8204.png', '8158.png', '8470.png', '8308.png', '8136.png', '8135.png', '8197.png', '8357.png', '8157.png', '8209.png', '8221.png', '8156.png', '8224.png', '8218.png', '8145.png'], 
+              'kitchen': ['8704.png', '8134.png', '8754.png', '8190.png', '8186.png', '8179.png'], 
+              'lights': ['8267.png', '8265.png', '8489.png', '8685.png', '8281.png', '8669.png', '8746.png', '8747.png', '8745.png', '8744.png', '8191.png', '8741.png', '8743.png', '8742.png', '8420.png'], 
+              'maids': ['8228.png', '8358.png', '8476.png', '8310.png', '8309.png', '8318.png', '8319.png', '8168.png', '8344.png', '8345.png', '8227.png', '8226.png'], 
+              'norn_saber': ['8388.png', '8377.png', '8571.png', '8565.png', '8570.png', '8376.png', '8389.png', '8348.png', '8374.png', '8572.png', '8598.png', '8375.png', '8163.png', '8601.png', '8371.png', '8588.png', '8577.png', '8589.png', '8370.png', '8600.png', '8372.png', '8212.png', '8373.png', '8367.png', '8300.png', '8314.png', '8274.png', '8260.png', '8261.png', '8275.png', '8315.png', '8301.png', '8329.png', '8317.png', '8303.png', '8288.png', '8277.png', '8276.png', '8262.png', '8289.png', '8302.png', '8316.png', '8312.png', '8306.png', '8299.png', '8266.png', '8273.png', '8298.png', '8307.png', '8313.png', '8305.png', '8477.png', '8311.png', '8339.png', '8265.png', '8264.png', '8338.png', '8310.png', '8304.png', '8309.png', '8321.png', '8335.png', '8296.png', '8282.png', '8255.png', '8254.png', '8283.png', '8297.png', '8334.png', '8320.png', '8308.png', '8478.png', '8336.png', '8322.png', '8444.png', '8281.png', '8295.png', '8256.png', '8294.png', '8280.png', '8323.png', '8479.png', '8333.png', '8327.png', '8284.png', '8290.png', '8247.png', '8291.png', '8285.png', '8326.png', '8324.png', '8318.png', '8293.png', '8287.png', '8278.png', '8279.png', '8286.png', '8292.png', '8319.png', '8331.png', '8381.png', '8356.png', '8587.png', '8586.png', '8592.png', '8343.png', '8380.png', '8382.png', '8369.png', '8355.png', '8341.png', '8590.png', '8340.png', '8354.png', '8368.png', '8383.png', '8387.png', '8344.png', '8378.png', '8595.png', '8345.png', '8386.png', '8384.png', '8390.png', '8347.png', '8353.png', '8596.png', '8597.png', '8391.png', '8385.png'], 
+              'partitions': ['9486.png', '9240.png', '7090.png', '9719.png', '7297.png', '9523.png', '9735.png', '9443.png', '7309.png', '9873.png', '9440.png', '9910.png', '7153.png', '9426.png', '9368.png', '9369.png', '9194.png', '7032.png', '9381.png', '9193.png', '9192.png', '9378.png', '9191.png', '9956.png', '9360.png', '9996.png', '9388.png', '9429.png', '9367.png', '7201.png', '9953.png', '9358.png', '7306.png', '9667.png', '9671.png', '9467.png', '9473.png', '9674.png', '9489.png', '9476.png', '7300.png', '9677.png', '7303.png'], 
+              'shelves': ['8148.png', '8215.png', '8210.png', '8164.png', '8206.png', '8263.png', '8262.png', '8110.png', '8271.png', '8517.png', '8335.png', '8242.png', '8245.png', '8222.png', '8182.png', '8208.png', '8151.png', '8187.png'], 
+              'sitables': ['8362.png', '8567.png', '8416.png', '8616.png', '8575.png', '8658.png', '8472.png', '8260.png', '8261.png', '8301.png', '8713.png', '8316.png', '8716.png', '8717.png', '8703.png', '8449.png', '8677.png', '8339.png', '8715.png', '8714.png', '8686.png', '8719.png', '8725.png', '8724.png', '8718.png', '8240.png', '8485.png', '8678.png', '8108.png', '8336.png', '8726.png', '8519.png', '8109.png', '8643.png', '8455.png', '8535.png', '8723.png', '8722.png', '8534.png', '8483.png', '8720.png', '8709.png', '8721.png', '8356.png', '8544.png', '8579.png', '8394.png', '8396.png', '8432.png', '8152.png', '8146.png', '8557.png', '8225.png', '8423.png', '8392.png', '8353.png', '8568.png', '8583.png', '8622.png'], 
+              'statues': ['8512.png', '8506.png', '8507.png', '8513.png', '8505.png', '8511.png', '8510.png', '8689.png', '8514.png', '8515.png', '8524.png', '8525.png', '8509.png', '8508.png', '8522.png', '8523.png'], 
+              'tables': ['8229.png', '8615.png', '8471.png', '8702.png', '8688.png', '8701.png', '8264.png', '8255.png', '8691.png', '8422.png', '8556.png'], 
+              'toilet': ['8161.png', '8160.png', '8114.png', '8700.png', '8120.png', '8680.png', '8118.png', '8547.png'], 
+              'vehicle': ['8203.png', '8001.png', '8000.png', '8202.png', '8002.png', '8003.png', '8006.png', '8004.png', '8005.png', '8671.png', '8459.png', '8500.png', '8321.png', '8094.png', '8095.png', '8322.png', '8323.png', '8093.png', '8130.png', '8324.png', '8085.png', '8008.png', '8009.png', '8551.png'], 
+              'wall decors': ['8405.png', '8559.png', '8558.png', '8188.png', '8614.png', '8560.png', '8711.png', '8706.png', '8306.png', '8259.png', '8258.png', '8241.png', '8257.png', '8280.png', '8694.png', '8195.png'], 
+              'wallpapers': ['8388.png', '8606.png', '8413.png', '8239.png', '8749.png', '8748.png', '8238.png', '8562.png', '8402.png', '8561.png', '8401.png', '8670.png', '8248.png', '8275.png', '8317.png', '8276.png', '8299.png', '8298.png', '8270.png', '8269.png', '8452.png', '8243.png', '8290.png', '8521.png', '8291.png', '8695.png', '8442.png', '8293.png', '8244.png', '8292.png', '8752.png', '8237.png', '8141.png', '8143.png', '8235.png', '8751.png', '8750.png', '8234.png', '8142.png', 'default.png', '8635.png', '8582.png', '8540.png', '8144.png'], 
+              'windows': ['8189.png', '8201.png', '8373.png', '8617.png', '8710.png', '8467.png', '8273.png', '8729.png', '8728.png', '8304.png', '8296.png', '8731.png', '8730.png', '8295.png', '8530.png', '8732.png', '8733.png', '8727.png', '8520.png', '8495.png', '8431.png', '8625.png', '8543.png', '8153.png', '8569.png']
+            };
+          
+            function deleteCache(param){localStorage.removeItem("tent!"+param);}
+            function saveCache(param,val){localStorage.setItem("tent!"+param,val);}
+            
+            function save(img)
+            {
+              let top = img.style.top;
+              let left = img.style.left;
+              let transform = img.style.transform;
+              let timeAdded = 0; if('timeAdded' in img.dataset) timeAdded=img.dataset.timeAdded; //allow multiple same items
+              saveCache(img.data+","+timeAdded, left+","+top+","+transform+","+curTimeMs());
+              saveSortOrder();
+            }
+            
+            function saveSortOrder()
+            {
+              let valAry = [];
+              let childImgs = TF.childNodes;
+              for(let i=0; i<childImgs.length; i++)
+              {
+                let img = childImgs[i];
+                let timeAdded = 0; if('timeAdded' in img.dataset) timeAdded=img.dataset.timeAdded;
+                let paramStr = img.data+","+timeAdded;
+                valAry.push(paramStr);
+              }
+              saveCache('SortOrder',valAry.join(';'));
+            }
+            
+            function loadSavedCache()
+            {
+              let furnituresDict = {};
+              let furnituresAry = [];
+              for(let key in localStorage)
+              {
+                if(!key.startsWith("tent!") || key=='tent!SortOrder') continue;
+                let path=key.substring(5);
+                let val=localStorage[key];
+                if(path=="flooring") setFloor(val);
+                else if(path=="wallpaper") setWallpaper(val);
+                else{
+                  let valAry=val.split(',');
+                  let pathAry=path.split(',');
+                  let src=apiPng+"groups/"+pathAry[0];
+                  let ms = 0; if(valAry.length>3) ms=parseInt(valAry[3]);
+                  let ta = 0; if(pathAry.length>1) ta=pathAry[1];
+                  let a= [pathAry[0],src,valAry[0],valAry[1],valAry[2],ms,parseInt(ta)];
+                  furnituresDict[path] = a;
+                  furnituresAry.push(a);
+                }      
+              }
+              let newSortOrder = false;
+              if(localStorage.hasOwnProperty('tent!SortOrder')){if(localStorage['tent!SortOrder'].includes(';')) newSortOrder = true;}
+              if(newSortOrder) //sort by tent!SortOrder cache
+              {
+                let sortOrderStr = localStorage['tent!SortOrder'];
+                let orderAry = sortOrderStr.split(';');
+                for(let orderedKey of orderAry){
+                  if(!furnituresDict.hasOwnProperty(orderedKey)) continue;
+                  let a = furnituresDict[orderedKey];
+                  addToTent(a[0],a[1],a[2],a[3],a[4],a[6]);
+                }
+              }
+              else  //sort furnitures from old to new if no sortOrder
+              {
+                furnituresAry.sort(function(first, second) {return first[5] - second[5];}); //compare 4th element ms
+                for(let a of furnituresAry)
+                  addToTent(a[0],a[1],a[2],a[3],a[4],a[6]);
+              }
+            }
+            
+            function updateViewMode()
+            {
+              if(geid('viewButton').checked) for(let img of TF.childNodes) img.classList.add('viewMode');
+              else for(let img of TF.childNodes) img.classList.remove('viewMode');
+            }
+            
+            function deleteFurniture(img)
+            {
+              deleteCache(img.data+","+img.dataset.timeAdded);
+              img.remove();
+            }
+            
+            function setFloor(path) {let src;if(path.endsWith("default.png")) src=""; else src=apiPng+"groups/"+path;geid("tentFloor").src = src;saveCache("flooring",path);}
+            
+            function setWallpaper(path){let src;if(path.endsWith("default.png")) src=""; else src=apiPng+"groups/"+path;geid("tentWall").src = src;saveCache("wallpaper",path);}
+            
+            function addToTent(data,src,px,py,t,ta)
+            {
+              if(px==-1) //from thumb click (new add)
+              {
+                if(currentCategory=="flooring") {setFloor(data);return;}
+                else if(currentCategory=="wallpapers") {setWallpaper(data);return;}
+              }
+              let tomove = document.createElement('img');
+              tomove.src = src; //original size
+              tomove.data = data;
+              tomove.onmousedown = function(e){pickup(e);}; tomove.ontouchstart = function(e){pickup(e);};
+              tomove.onmouseup = function(e){drop(e);}; tomove.ontouchend = function(e){drop(e);};
+              tomove.draggable = false;
+              //RIGHT CLICK / DOUBLE CLICK (MOBILE)
+              if(isMobileView) tomove.ondblclick= function(){flip(this);};
+              else tomove.oncontextmenu = function(){flip(this);}; //mouse click doesn't detect ondblclick, so right click instead
+              //add to tent
+              let c = TF.appendChild(tomove); 
+              if(px==-1 && py==-1)
+              {
+                geid("dragButton").checked = true; updateViewMode();
+                px=parseInt(TB.scrollLeft+(TB.clientWidth/2))+"px";
+                py=parseInt(TB.scrollTop+(TB.clientHeight/2))+"px"; 
+              }
+              if(ta=='') c.dataset.timeAdded = curTimeMs();
+              else c.dataset.timeAdded = ta;
+              c.style.left = px;
+              c.style.top = py;
+              c.style.transform = t;
+              c.crossOrigin = "anonymous";
+              if(ta=='') save(c); //not added from cache load
+              return c;
+            }
+          
+            function pickup(event)
+            {
+              if(event.button==2) return; //right click
+              hidePartitionArrows();
+              if(geid('viewButton').checked) return;
+              else if(geid('delButton').checked){return;}
+              br=TB.getBoundingClientRect();
+              moving=event.target; 
+              if(!event.clientX)TB.style.overflow="hidden";
+            }
+          
+            function move(event)
+            {
+              if(geid('viewButton').checked) return; //view mode
+              if(moving==null) return; //either move or delete mode
+              if(!moving.data.startsWith('partitions')) moving=TF.appendChild(moving);
+              let px,py;
+              if (event.clientX) {px=event.clientX; py=event.clientY;}
+              else {px=event.touches[0].clientX; py=event.touches[0].clientY;}
+              moving.style.left = parseInt(px - moving.clientWidth/2 - br.left+TB.scrollLeft)+"px";
+              moving.style.top = parseInt(py - moving.clientHeight/2 - br.top+TB.scrollTop)+"px";
+            }
+          
+            function drop(event) 
+            {
+              if(event.button==2) return; //right click
+              if(geid('delButton').checked){deleteFurniture(event.target); return;}
+              if (moving==null) return; 
+              save(moving);
+              moving = null;
+              if(!event.clientX) TB.style.overflow="scroll";
+            }
+          
+            function flip(target) 
+            {
+              if(geid('viewButton').checked) return; 
+              if(target.data.startsWith('partitions')) {showPartitionArrows(target); return;}
+              let curR=target.style.transform; 
+              if(curR=="scaleX(-1)") target.style.transform=""; 
+              else target.style.transform="scaleX(-1)"; 
+              save(target);
+            }
+            
+            function hidePartitionArrows()
+            {
+              PMenu.style.visibility='hidden';
+              if(curPillarToExtend!='' && curPillarToExtend) curPillarToExtend.classList.remove('partitionMenu'); //unhighlight pillar
+            }
+            
+            function showPartitionArrows(pillar)
+            {
+              hidePartitionArrows();
+              PMenu.style.visibility = 'visible';
+              PMenu.style.left = pillar.style.left;
+              PMenu.style.top = pillar.style.top;
+              curPillarToExtend = pillar;
+              pillar.classList.add('partitionMenu'); //highlight pillar
+            }
+            
+            function extendPillar(direction)
+            {
+              if(curPillarToExtend=='' || curPillarToExtend==null) return;
+              let ox = parseInt(curPillarToExtend.style.left.replace('px',''));
+              let oy = parseInt(curPillarToExtend.style.top.replace('px',''));
+              let px=0, py=0;
+              let dx=28, dy=14;
+              if(direction=='SW'){px=ox-dx; py=oy+dy;}
+              else if(direction=='SE'){px=ox+dx; py=oy+dy;}
+              else if(direction=='NW'){px=ox-dx; py=oy-dy;}
+              else if(direction=='NE'){px=ox+dx; py=oy-dy;}
+              //currentCategory = 'partitions';
+              let addedPillar = addToTent(curPillarToExtend.data,curPillarToExtend.src,px+'px',py+'px',"",''); //by default adds to top layer    
+              if(direction.startsWith('N')) {
+                TF.insertBefore(addedPillar, curPillarToExtend);
+                save(addedPillar);
+              }
+              //done extend
+              PMenu.style.visibility = 'hidden';
+            }
+            
+            function selectCategory(cat)
+            {
+              if(currentCategory==cat) return; //do nothing if same category as previous
+              currentCategory = cat;
+              geid("curThumbnails").innerHTML = ""; //clear current thumbnails
+              if(cat=="") return;
+              //query category list
+              let resAry = catalogData[currentCategory];
+              for(let item of resAry)
+              {
+                let thumb = document.createElement("img");
+                let src = apiPng+"groups/"+cat+"/"+item;
+                thumb.src = src;
+                thumb.style.width = "fit-content";
+                thumb.style.height = "auto";
+                thumb.style.maxHeight = "80px";
+                thumb.onerror = function() {handleImgError(this);};
+                let data = cat+"/"+item;
+                if(cat=="flooring" || cat=="wallpapers") data = cat+"/data/"+item;
+                thumb.data = data;
+                thumb.onclick = function(){addToTent(data,src,-1,-1,"","");};
+                geid("curThumbnails").appendChild(thumb);
+              }
+              geid("curThumbnails").scrollTop = 0;
+            }
+            
+            function saveAsPng()
+            {
+              let canvas = document.createElement("canvas");
+              canvas.width = TF.width; canvas.height = TF.height;
+              let c = canvas.getContext('2d');
+              c.drawImage(geid("tentbase"),0,0);
+              c.drawImage(geid("tentFloor"),0,0);
+              c.drawImage(geid("tentWall"),0,0);
+              let furnitures = TF.getElementsByTagName('img');
+              for(let f of furnitures)
+              {
+                let left = parseInt(f.style.left.replace("px","")), top = parseInt(f.style.top.replace("px","")); 
+                let width = f.width, height = f.height;
+                c.save();
+                if(f.style.transform=="scaleX(-1)") 
+                {
+                  c.translate(width,0);
+                  c.scale(-1,1);
+                  left=left*-1;
+                }
+                c.drawImage(f,left,top,width,height);
+                c.restore();
+              }
+              let canvasUrl = canvas.toDataURL("image/png"); 
+              const createEl = document.createElement('a');
+              createEl.href = canvasUrl;
+              createEl.download = "exportedTent.png";
+              createEl.click();
+              createEl.remove();
+            }
+            
+            function clearTent()
+            {
+              let keysToDelete = [];
+              //clear cache
+              for (let i=0; i<localStorage.length; i++)
+              {
+                let curCacheKey = localStorage.key(i);
+                if(curCacheKey.startsWith('tent!')) keysToDelete.push(curCacheKey);
+                }
+              for(let tk of keysToDelete) localStorage.removeItem(tk);
+              //reload page
+              window.location.reload();
+            }
+            
+            function refreshMainboxSize(){MB.style.height = (window.innerHeight - MB.getBoundingClientRect().top - 10) +'px';}
+          
+            function initView()
+            {
+              let tentBase = geid("tentbase"); tentBase.crossOrigin = "anonymous";
+              tentBase.onload=function()
+              {
+                TF.width=this.width;
+                TF.height=this.height;
+                if(isMobileView) TB.scrollTo(150,90);
+                else TB.scrollTo(0,150) //bottom tent
+                loadSavedCache();
+              };
+              tentBase.src = apiPng+"tent_base_small.png";
+              TB.onclick=function(){hidePartitionArrows();};
+              geid("tentFloor").crossOrigin = "anonymous"; geid("tentWall").crossOrigin = "anonymous";
+              geid("curThumbnails").addEventListener("wheel", function(e){if(e.deltaY>0){this.scrollLeft+=100;e.preventDefault();} else{this.scrollLeft-=100;e.preventDefault();}});
+              selectCategory(geid("categoryDropDown").value);
+              document.oncontextmenu=function(){return false;};
+          
+              let urlParams = new URLSearchParams(window.location.search);
+              if(urlParams.has("m")) isMobileView = true;
+              window.onload = function(){updateViewMode();};
+              window.onresize = function(){refreshMainboxSize();}
+              refreshMainboxSize();
+            }
+          
+            initView();
+        </script>
+    </body>
+</html>
+    

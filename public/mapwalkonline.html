@@ -1,0 +1,63 @@
+<div id='mainbox'>
+  <dialog id="enterNameDialog" style="width: 150px;">
+    <input id="nameInput" placeholder="Enter name" style="width: 100px; margin-right: 1px;" autocomplete="off" maxlength="20"/>
+    <button onclick="SetName()">OK</button>
+  </dialog>
+  <div>
+    <select disabled id="char" name="char" onchange="changeChar()">
+      <option value="clive">Clive</option>
+    </select>
+    <button class="button-85" onclick="goToWardrobe()">&#127872; Wardrobe</button>
+  </div>
+  <div id="mapBox">
+    <img id="damap" />
+    <canvas id="sprite"></canvas>
+    <img id="colliders" />
+    <canvas id="clickable"></canvas>
+  </div>
+  <div style="display: inline-flex; width: -webkit-fill-available; margin-top: 5px;">
+    <input disabled id="name" placeholder="Enter name" style="max-width: 85px; width: 25%; margin-right: 1px; font-size: 12pt;" autocomplete="off" maxlength="20"/>
+    <input id="chatinput" placeholder="chat message" style="max-width: 230px; width: 75%; font-family: monospace; font-size: 12pt;" type="text" autocomplete="off" maxlength="255"/>
+  </div>
+  <div style="padding-top: 10;  display: flex;">
+    <button onclick="wave()">&#128075; Wave(Player)</button>
+    <button onclick="sit()">&#128186; Sit</button>
+    <audio controls loop id="backMusic" style="height: 24px; width: 100px; padding-left: 10px;">
+      <source src="assets/music/Moonlit Floor (Instrumental)-cut.mp3" type="audio/mpeg">
+    </audio>
+  </div>
+</div>
+  
+<script src="data/mapwalkonline.js"></script>
+
+<link rel="stylesheet" type="text/css" href="data/buttons.css">
+<style>
+  body {
+    background-color: black;
+  }
+  #mapBox {
+    margin-top: 10px;
+    overflow: hidden;
+    height: 80%;
+    position: relative;
+    user-select: none;
+    cursor: url('assets/cursor.png'),auto;
+  }
+  #mapBox img,canvas{
+    position: absolute;
+    user-select: none;
+  }
+  #damap, #colliders {
+      max-width: fit-content;
+    height: fit-content;
+  }
+  #mainbox {
+    display: flex;
+    flex-direction: column;
+  }
+  /*html {
+    overflow: hidden;
+  }*/
+
+</style>
+  

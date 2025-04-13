@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en-us">
+    <head>
+        <style>
+            #mapBox {
+              overflow: hidden;
+              height: 80%;
+              position: relative;
+              user-select: none;
+              cursor: url('assets/cursor.png'),auto;
+            }
+            #mapBox img,canvas{
+              position: absolute;
+              user-select: none;
+            }
+            #damap {
+                max-width: fit-content;
+              height: fit-content;
+            }
+            #mainbox {
+              display: flex;
+              flex-direction: column;
+            }
+            
+        </style>
+    </head>
+    <body>
+        <div id='mainbox'>
+            <div>
+              <label>Choose a character:</label>
+              <select id="char" name="char" onchange="initSprite()">
+                <option value="clive">Clive</option>
+              </select><p></p>
+            </div>
+            <div id="mapBox">
+              <img id="damap" />
+              <canvas id="sprite"></canvas>
+            </div>
+            <div style="margin-top: 7px;">
+              X:<span id="x"></span><br />
+              Y:<span id="y"></span>
+            </div>
+          </div>
+          
+          <script>
+            function geid(id){return document.getElementById(id);}
+            function curTimeMs(){return Date.now();}
+            const api = "assets/";
+            const spriteCanvas = geid("sprite");
+            const ctx = spriteCanvas.getContext('2d');
+            const MB = geid('mainbox');
+            const mapBox = geid("mapBox");
+            const mapImg = geid("damap");
+            const xLabel = geid("x"); const yLabel = geid("y");
+            //const initX = 784; const initY=2116;
+            const initX = 60; const initY=700;
+            var charNames = ['angela', 'athena', 'bunnymaid', 'clive_rebirth', 'elin', 'eva', 'eva_rebirth', 'fred', 'fred_rebirth', 'hayate', 'hayate_rebirth', 'joan', 'joan_rebirth', 'kanako', 'king', 'kana', 'princess', 'chan\'ge', 'silvia', 'louis', 'magellan', 'monkey_rebirth', 'niss', 'niss_rebirth', 'qlaya', 'roca', 'roca_rebirth', 'rosa', 'sam', 'shasha', 'shasha_rebirth', 'snowgirl', 'venus', 'venus_rebirth', 'victoria', 'victoria_rebirth', 'xaolan', 'xaolan_rebirth', 'noa_ch'];
+            const dirs = ["N","NE","E","SE","S","SW","W","NW"];
+            var MapPathData = null;
+            var spriteImgs = {};
+            var av_spriteImgs = null; //key=categories, value=dict of imgs (direction as key)
+            var effectsImgs = [];
+            var urlParams = null;
+            var walkTimer = null;
+            var curX=0,curY=0; var curSpriteName; var curDirection="S"; var lastChangedSprite; var curEffectNum=1;
+            var playerMode = false;
+            const catsOrderN = ["base","arm","shoes","body","hairs","head","special","hand","effects"];
+            const catsOrderS = ["hand","base","arm","shoes","body","hairs","head","special","effects"];
+            var av_loadedImgsCount = 0;
+          
+              
+            function getCache(key){return localStorage[key];}
+            function hasCache(key){let v=getCache(key); return v && v!=null && v!='null' && v!='undefined';}
+            function handleImgError(imgN){imgN.src = "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/HD_transparent_picture.png/320px-HD_transparent_picture.png";}
+            function positionSpriteOn(posX, posY)
+            {
+              ctx.clearRect(0, 0, spriteCanvas.width, spriteCanvas.height);
+              mapBox.scrollTo(posX-200, posY-200);
+              let xc = posX-64; let yc = posY-100;//sprite png leg at point 64,100
+              if(playerMode) {
+                let catsOrder = catsOrderN;
+                if(curDirection.includes("S")) catsOrder = catsOrderS;
+                for(let cat of catsOrder)
+                {
+                  if(av_spriteImgs.hasOwnProperty(cat)) {
+                    if(cat=="hand") ctx.drawImage(av_spriteImgs[cat][curSpriteName],posX-128,posY-164);
+                    else ctx.drawImage(av_spriteImgs[cat][curSpriteName],xc,yc);
+                  }
+                  if(cat=='effects' && effectsImgs.length>0) ctx.drawImage(effectsImgs[curEffectNum-1],xc,yc-30);
+                }
+              }
+              else
+                ctx.drawImage(spriteImgs[curSpriteName],xc,yc); 
+              curX = posX; curY = posY;
+              xLabel.innerHTML=posX;
+              yLabel.innerHTML=posY;
+            }
+            
+            function showSprite()
+            {
+              mapImg.style.visibility = "visible";
+              spriteCanvas.style.visibility = "visible";
+              curSpriteName = "Static_"+curDirection+"_1";
+              if(curX==0 && curY==0){curX=initX;curY=initY;}
+              positionSpriteOn(curX,curY);
+              lastChangedSprite = curTimeMs();
+            }
+            
+            function setColor(defIMG, savedC)
+            {
+              let img=new Image();
+              img.onload = function () 
+              {
+                let colorCV = document.createElement('canvas');
+                let dHeight = this.height;
+                let dWidth = this.width;
+                if(dWidth==0) {setColor(this,savedC); return;}
+                colorCV.height = dHeight;
+                colorCV.width = dWidth;
+                //start change color
+                let ctx = colorCV.getContext('2d');
+                ctx.drawImage(this,0,0,dWidth,dHeight);
+                let imageData = ctx.getImageData(0, 0, colorCV.width, colorCV.height);
+                let data = imageData.data;
+                let cary = savedC.split(',');
+                let dR=cary[0], dG=cary[1], dB=cary[2];
+                for (let i=0; i<data.length; i+=4) 
+                {
+                    let newR = data[i]+(data[i]*(dR/100));
+                    if(newR<0) newR=0; else if(newR>255) newR=255;
+                    data[i] = newR;
+                    let newG = data[i+1]+(data[i+1]*(dG/100));
+                    if(newG<0) newG=0; else if(newG>255) newG=255;
+                    data[i+1] = newG;
+                    let newB = data[i+2]+(data[i+2]*(dB/100));
+                    if(newB<0) newB=0; else if(newB>255) newB=255;
+                    data[i+2] = newB;
+                }
+                ctx.putImageData(imageData, 0, 0);
+                defIMG.src = colorCV.toDataURL();//console.log('changed color');
+              }
+              img.crossOrigin = "Anonymous";
+              img.src = defIMG.src;
+            }
+      
+            
+            function initAvSprite()
+            {
+              playerMode = true;
+              if(av_spriteImgs==null)
+              {
+                av_spriteImgs = {}; av_loadedImgsCount = 0; effectsImgs = [];
+                if(urlParams==null) urlParams = new URLSearchParams(window.location.search);
+                let baseType=urlParams.get("base");
+                for(let [param, value] of urlParams)
+                {       
+                  if(param=="m" || param=="char") continue;
+                  if(param=="effects")//load effects
+                  {
+                    for(let n=1; n<=10; n++) effectsImgs.push(new Image());
+                    for(let n=1; n<=10; n++) effectsImgs[n-1].src = api+"player/effects/"+value+"/"+n+".png";
+                    if(hasCache('color-effects')) {
+                        let effColor = getCache('color-effects');
+                        for(let n=1; n<=10; n++) setColor(effectsImgs[n-1], effColor);
+                    }
+                    continue;
+                  }
+                  //other params part
+                  av_spriteImgs[param] = {};
+                  for(let dir of dirs) 
+                  {
+                    av_spriteImgs[param]["Static_"+dir+"_1"] = new Image();
+                    for(let i=1; i<=4; i++) av_spriteImgs[param]["Walk_"+dir+"_"+i] = new Image();
+                  }
+                  av_spriteImgs[param]["Static_"+curDirection+"_1"].onload = function () {showSprite();}; //initial pose
+                  
+                  for(let key in av_spriteImgs[param]) av_spriteImgs[param][key].onerror = function(){handleImgError(this);};
+                  if(param=="base"){
+                    for(let key in av_spriteImgs[param]) {
+                      av_spriteImgs[param][key].src = api+"player/"+baseType+"/base/"+key+".png";
+                      if(hasCache('color-av_base')) {
+                        let baseColor = getCache('color-av_base');
+                        setColor(av_spriteImgs[param][key], baseColor);
+                      }
+                    }
+                  }
+                  else //not effects or base
+                    for(let key in av_spriteImgs[param]) { 
+                      av_spriteImgs[param][key].src = api+"player/"+baseType+"/"+param+"/"+value+"/"+key+".png";   
+                      if(hasCache('color-'+param)) {
+                        let partColor = getCache('color-'+param);
+                        setColor(av_spriteImgs[param][key], partColor);
+                      } 
+                    } 
+                }
+              }
+              else showSprite();
+            }
+            
+            
+            function initSprite()
+            {
+              spriteCanvas.style.visibility = "hidden";
+              let selectedSprite = geid("char").value;
+              if(selectedSprite=="player") {initAvSprite();return;}   
+              playerMode = false;
+              spriteImgs = {};
+              for(let dir of dirs) {
+                spriteImgs["Static_"+dir+"_1"] = new Image();
+                for(let i=1; i<=4; i++) spriteImgs["Walk_"+dir+"_"+i] = new Image();
+              }
+              spriteImgs["Static_"+curDirection+"_1"].onload = function() {showSprite();}; //initial pose
+              for(let key in spriteImgs) {
+                spriteImgs[key].onerror = function(){handleImgError(this);};
+                spriteImgs[key].src = api+"sprite/"+selectedSprite+"/"+key+".png";
+              }
+            }
+            
+            function clickedMap(e)
+            {
+              let x = e.offsetX;
+              let y = e.offsetY;
+              walk(x,y);
+            }
+            
+            function walk(targetX, targetY)
+            {
+              if(walkTimer!=null) clearInterval(walkTimer);
+              walkTimer = setInterval(function() // executed every 10 milliseconds = 100 pixel per second
+              {
+                //get the direction to targetXY
+                let faceDir = "N";
+                let dx = targetX-curX;
+                let dy = targetY-curY;
+                if(dx==0 && dy<0) faceDir="N";
+                else if(dx>0 && dy<0) faceDir="NE";
+                else if(dx<0 && dy<0) faceDir="NW";
+                else if(dx==0 && dy>0) faceDir="S";
+                else if(dx>0 && dy>0) faceDir="SE";
+                else if(dx<0 && dy>0) faceDir="SW";
+                else if(dx>0 && dy==0) faceDir="E";
+                else if(dx<0 && dy==0) faceDir="W";
+                else faceDir=curDirection;
+                let Nx,Ny,NEx,NEy,Ex,Ey,SEx,SEy,Sx,Sy,SWx,SWy,Wx,Wy,NWx,NWy;
+                Nx=curX; Ny=curY-1; 
+                NEx=curX+1; NEy=curY-1; 
+                NWx=curX-1; NWy=curY-1; 
+                Sx=curX; Sy=curY+1; 
+                SEx=curX+1; SEy=curY+1; 
+                SWx=curX-1; SWy=curY+1; 
+                Ex=curX+1; Ey=curY; 
+                Wx=curX-1; Wy=curY; 
+                //get nextXY
+                let nextX, nextY;
+                switch(faceDir)
+                {
+                  case "N":nextX=Nx;nextY=Ny; break;
+                  case "NE":nextX=NEx;nextY=NEy; break;
+                  case "NW":nextX=NWx;nextY=NWy; break;
+                  case "S":nextX=Sx;nextY=Sy; break;
+                  case "SE":nextX=SEx;nextY=SEy; break;
+                  case "SW":nextX=SWx;nextY=SWy; break;
+                  case "E":nextX=Ex;nextY=Ey; break;
+                  case "W":nextX=Wx;nextY=Wy; break;
+                }
+                let reachedTarget = false;
+                //get next sprite name
+                if((nextX==targetX && nextY==targetY) || !isPath(nextX,nextY)) //reached target or dead end
+                {
+                  curSpriteName = "Static_"+faceDir+"_1"; //stop the walk
+                  lastChangedSprite = curTimeMs();
+                  reachedTarget = true;
+                }
+                else if(curDirection!=faceDir) //change direction, must change sprite
+                {
+                  curSpriteName = "Walk_"+faceDir+"_1";
+                  lastChangedSprite = curTimeMs();
+                }
+                else if((curTimeMs()-lastChangedSprite) > 250)
+                {
+                  if(curSpriteName.startsWith("Walk") && curDirection==faceDir) //same dir, next frame
+                  {
+                    let sn= curSpriteName;
+                    let curNum = parseInt(sn.substring(sn.length-1));
+                    let nextNum;
+                    if(curNum==4) nextNum=1;
+                    else nextNum = curNum+1;
+                    curSpriteName=sn.substring(0,sn.lastIndexOf("_")+1)+nextNum; 
+                  }
+                  else curSpriteName = "Walk_"+faceDir+"_1"; //change direction
+                  lastChangedSprite = curTimeMs();
+                  
+                  //update effects next frame
+                  if(curEffectNum==10) curEffectNum=1;
+                  else curEffectNum++;
+                }
+                //else no change to sprite name
+                if(isPath(nextX,nextY)) positionSpriteOn(nextX,nextY);
+                else positionSpriteOn(curX,curY);
+                curDirection = faceDir;
+                if(reachedTarget) clearInterval(walkTimer);
+                
+              }, 10);
+            }
+            
+            function initMapPath()
+            {
+              let image = new Image();
+              image.onload = function() {
+                let canvas = document.createElement('canvas');
+                canvas.width = image.width;
+                canvas.height = image.height;
+                let context = canvas.getContext('2d');
+                context.drawImage(image, 0, 0);
+                MapPathData = context.getImageData(0, 0, canvas.width, canvas.height);
+                };
+              image.crossOrigin = "Anonymous";
+              image.src = api+"path/peak2_path.png";
+            }
+            function isPath(x,y)
+            {
+              if(MapPathData==null) return true;
+              let index = (y*MapPathData.width + x) * 4;
+              //let r = MapPathData.data[index];let g = MapPathData.data[index+1];let b = MapPathData.data[index+2];
+              let alpha = MapPathData.data[index + 3];
+              return (alpha==255);
+            }
+            
+            function initSpriteDropDown()
+            {
+              let dropdown = geid("char");
+              charNames.sort();
+              for(let v of charNames)
+              {
+                let option = document.createElement("option");
+                option.value = v;
+                let labelText = v.charAt(0).toUpperCase() + v.slice(1);
+                labelText = labelText.replace("_rebirth"," (R)");
+                option.text = labelText;
+                dropdown.add(option);
+              }
+              urlParams = new URLSearchParams(window.location.search);
+              if(urlParams.has("base")) {
+                let option = document.createElement("option");
+                option.value = "player";
+                option.text = "Player";
+                dropdown.add(option, dropdown[0]);
+                dropdown.selectedIndex = "0";
+              }
+            }
+            
+            function refreshMainboxSize(){MB.style.height = (window.innerHeight - MB.getBoundingClientRect().top -10) +'px';}
+          
+            function initView()
+            {
+              document.oncontextmenu=function(){return false;};
+              mapImg.style.visibility = "hidden";
+              mapImg.onload = function()
+              {
+                mapImg.scrollTo(initX-200,initY-200);
+                spriteCanvas.height = mapImg.height;
+                spriteCanvas.width = mapImg.width;
+                mapBox.style.maxHeight = mapImg.height +'px';
+                initSpriteDropDown();
+                initSprite();
+              };
+              mapImg.src = api+"map/peak2.jpg";
+              spriteCanvas.addEventListener("click",clickedMap);
+              initMapPath();
+            }
+            window.onresize = function(){refreshMainboxSize(); mapBox.scrollTo(curX-200, curY-200);}; refreshMainboxSize();
+            initView();
+        </script>
+          
+    </body>
+</html>

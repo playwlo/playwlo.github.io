@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en-us">
+    <head>
+        <style>
+            #mapBox {
+              margin-top: 7px;
+              overflow: hidden;
+              height: 77%;
+              position: relative;
+              user-select: none;
+              cursor: url('assets/cursor.png'),auto;
+            }
+            #mapBox img,canvas{
+              position: absolute;
+              user-select: none;
+            }
+            #damap {
+                max-width: fit-content;
+              height: fit-content;
+            }
+        </style>
+    </head>
+    <body>
+        <div id='mainbox'>
+            <label>Choose character:</label>
+            <select id="char" name="char" onchange="changeSprite()">
+              <option value="clive">Clive</option>
+            </select>
+            <button onclick="goToWardrobe()">Wardrobe</button>
+            <div id="mapBox">
+              <img id="damap" />
+              <canvas id="sprite"></canvas>
+            </div>
+            <div style="margin-top: 7px;">
+              X:<span id="x"></span><br />
+              Y:<span id="y"></span><br />
+              <span id="mapname"></span><button id="worldButton" onclick="clickedGoWorldMap()">Back to World</button>
+            </div>
+        </div>
+
+        <script>
+            function geid(id){return document.getElementById(id);}
+            function curTimeMs(){return Date.now();}
+            const api = "assets/";
+            const spriteCanvas = geid("sprite");
+            const ctx = spriteCanvas.getContext('2d');
+            const MB = geid('mainbox');
+            const mapBox = geid("mapBox");
+            const mapImg = geid("damap");
+            const xLabel = geid("x"); const yLabel = geid("y");
+            var initX = 1300; var initY=1700;
+            var charNames = ['angela', 'athena', 'bunnymaid', 'clive_rebirth', 'elin', 'eva', 'eva_rebirth', 'fred', 'fred_rebirth', 'hayate', 'hayate_rebirth', 'joan', 'joan_rebirth', 'kanako', 'king', 'kana', 'princess', 'chan\'ge', 'silvia', 'louis', 'magellan', 'monkey_rebirth', 'niss', 'niss_rebirth', 'qlaya', 'roca', 'roca_rebirth', 'rosa', 'sam', 'shasha', 'shasha_rebirth', 'snowgirl', 'venus', 'venus_rebirth', 'victoria', 'victoria_rebirth', 'xaolan', 'xaolan_rebirth', 'noa_ch'];
+            const dirs = ["N","NE","E","SE","S","SW","W","NW"];
+            var MapPathData = null;
+            var spriteImgs = null;
+            var av_spriteImgs = null; //key=categories, value=dict of imgs (direction as key)
+            var carpetImgs = {};
+            var effectsImgs = [];
+            var urlParams = null;
+            var walkTimer = null;
+            var curX=0,curY=0; var curSpriteName; var curDirection="S"; var lastChangedSprite; var curEffectNum=1;
+            var playerMode = false;
+            const imageFolders = ["base","hairs","head","body","hand","arm","shoes","special","effects"];
+            const catsOrderN = ["base","arm","shoes","body","hairs","head","special","hand","effects"];
+            const catsOrderS = ["hand","base","arm","shoes","body","hairs","head","special","effects"];
+            var InWorldMap = true;
+            var currentMap = "europe_stampped_crop";
+            var isMobileView = false;
+            var lastDrawTime = 0;
+          
+            function saveCache(key,val){localStorage[key] = val;}
+            function getCache(key){return localStorage[key];}
+            function hasCache(key){let v=getCache(key); return v && v!=null && v!='null' && v!='undefined';}
+            function handleImgError(imgN){imgN.src = "https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/HD_transparent_picture.png/320px-HD_transparent_picture.png";}
+            function drawImg(image,x,y){try{ctx.drawImage(image,x,y);} catch(err){}}
+            function positionSpriteOn(posX, posY)
+            {
+              if(curTimeMs()-lastDrawTime > 25) //40 FPS
+              {
+                ctx.clearRect(0, 0, spriteCanvas.width, spriteCanvas.height);
+                mapBox.scrollTo(posX-200, posY-200);
+                //draw carpet
+                drawImg(carpetImgs[curSpriteName],posX-128,posY-130);
+                //draw player
+                let xc = posX-64; let yc = posY-100;//sprite png leg at point 64,100
+                if(playerMode) {
+                  let catsOrder = catsOrderN;
+                  if(curDirection.includes("S")) catsOrder = catsOrderS;
+                  for(let cat of catsOrder)
+                  {
+                    if(av_spriteImgs.hasOwnProperty(cat)) {
+                      if(cat=="hand") drawImg(av_spriteImgs[cat]["Sit_"+curDirection],posX-128,posY-164);
+                      else drawImg(av_spriteImgs[cat]["Sit_"+curDirection],xc,yc);
+                    }
+                    if(cat=='effects' && effectsImgs.length>0) ctx.drawImage(effectsImgs[curEffectNum-1],xc,yc);
+                  }
+                }
+                else //npc mode
+                {
+                  let sitDir = curDirection;
+                  if(sitDir.length==1)
+                  {
+                    if(sitDir=="N"||sitDir=="S") sitDir+="E";
+                    else sitDir="S"+sitDir;    
+                  }
+                  drawImg(spriteImgs["Sit_"+sitDir],xc,yc);
+                }
+                lastDrawTime=curTimeMs();
+              }
+              
+              curX = posX; curY = posY;
+              xLabel.innerHTML=posX;
+              yLabel.innerHTML=posY;
+            }
+            
+            function showSprite()
+            {
+              mapImg.style.visibility = "visible";
+              spriteCanvas.style.visibility = "visible";
+              curSpriteName = "Static_"+curDirection;
+              if(curX==0 && curY==0){curX=initX;curY=initY;}
+              positionSpriteOn(curX,curY);
+              lastChangedSprite = curTimeMs();
+            }
+            
+            function goToWardrobe(){window.open("https://playwlo.blogspot.com/p/wardrobe.html");}
+            
+            function setColor(defIMG, savedC)
+            {
+              let img=new Image();
+              img.onload = function () 
+              {
+                let colorCV = document.createElement('canvas');
+                let dHeight = this.height;
+                let dWidth = this.width;
+                if(dWidth==0) {setColor(this,savedC); return;}
+                colorCV.height = dHeight;
+                colorCV.width = dWidth;
+                //start change color
+                let ctx = colorCV.getContext('2d');
+                ctx.drawImage(this,0,0,dWidth,dHeight);
+                let imageData = ctx.getImageData(0, 0, colorCV.width, colorCV.height);
+                let data = imageData.data;
+                let cary = savedC.split(',');
+                let dR=cary[0], dG=cary[1], dB=cary[2];
+                for (let i=0; i<data.length; i+=4) 
+                {
+                    let newR = data[i]+(data[i]*(dR/100));
+                    if(newR<0) newR=0; else if(newR>255) newR=255;
+                    data[i] = newR;
+                    let newG = data[i+1]+(data[i+1]*(dG/100));
+                    if(newG<0) newG=0; else if(newG>255) newG=255;
+                    data[i+1] = newG;
+                    let newB = data[i+2]+(data[i+2]*(dB/100));
+                    if(newB<0) newB=0; else if(newB>255) newB=255;
+                    data[i+2] = newB;
+                }
+                ctx.putImageData(imageData, 0, 0);
+                defIMG.src = colorCV.toDataURL();//console.log('changed color');
+              }
+              img.crossOrigin = "Anonymous";
+              img.src = defIMG.src;
+            }
+            
+            function initAvSprite()
+            {
+              playerMode = true;
+              if(av_spriteImgs==null)
+              {
+                av_spriteImgs = {}; effectsImgs = [];
+                let baseType=getCache("base");
+                for(let param of imageFolders)
+                {       
+                  let value = getCache(param); if(!value || value==null || value=="undefined" || value=="null") continue;
+                  if(param=="effects")//load effects
+                  {
+                    for(let n=1; n<=10; n++) effectsImgs.push(new Image());
+                    for(let n=1; n<=10; n++) effectsImgs[n-1].src = api+"player/effects/"+value+"/"+n+".png";
+                    if(hasCache('color-effects')) {
+                        let effColor = getCache('color-effects');
+                        for(let n=1; n<=10; n++) setColor(effectsImgs[n-1], effColor);
+                    }
+                    continue;
+                  }
+                  av_spriteImgs[param] = {};
+                  for(let dir of dirs) av_spriteImgs[param]["Sit_"+dir] = new Image();
+                  av_spriteImgs[param]["Sit_"+curDirection].onload = function () {showSprite();}; //initial pose
+                  if(param=="base"){
+                    for(let key in av_spriteImgs[param]) {
+                        av_spriteImgs[param][key].src = api+"player/"+baseType+"/base/"+key+".png";
+                    }
+                    if(hasCache('color-av_base')) {
+                        let baseColor = getCache('color-av_base');
+                        for(let key in av_spriteImgs[param]) setColor(av_spriteImgs[param][key], baseColor);
+                      }
+                  }
+                  else {
+                    for(let key in av_spriteImgs[param]) {
+                        av_spriteImgs[param][key].src = api+"player/"+baseType+"/"+param+"/"+value+"/"+key+".png";
+                    }
+                    if(hasCache('color-'+param)) {
+                        let partColor = getCache('color-'+param);
+                        for(let key in av_spriteImgs[param]) setColor(av_spriteImgs[param][key], partColor);
+                      } 
+                  }
+                  for(let key in av_spriteImgs[param]) av_spriteImgs[param][key].onerror = function(){handleImgError(this);};
+                }
+              
+              }
+              else showSprite();
+            }
+            
+            function changeSprite()
+            {
+              let selectedSprite = geid("char").value;
+              initSprite();
+              saveCache("char",selectedSprite);
+            }
+            
+            
+            function initSprite()
+            {
+              spriteCanvas.style.visibility = "hidden";
+              let selectedSprite = geid("char").value;
+              if(selectedSprite=="player") {initAvSprite();return;}   
+              playerMode = false;
+              if(spriteImgs==null)
+              {
+                spriteImgs = {};
+                for(let dir of dirs) if(dir.length!=1) spriteImgs["Sit_"+dir] = new Image(); //npc has no N,S,E,W sits
+                let sitDir = curDirection;
+                if(sitDir.length==1)
+                {
+                  if(sitDir=="N"||sitDir=="S") sitDir+="E";
+                  else sitDir="S"+sitDir;    
+                }
+                spriteImgs["Sit_"+sitDir].onload = function() {showSprite();}; //initial pose
+                for(let key in spriteImgs) spriteImgs[key].onerror = function(){handleImgError(this);};
+              }
+              for(let key in spriteImgs) spriteImgs[key].src = api+"sprite/"+selectedSprite+"/"+key+".png"; 
+            }
+            
+            function initCarpet()
+            { 
+              carpetImgs = {};
+              for(let dir of dirs) {
+                carpetImgs["Static_"+dir] = new Image();
+                for(let i=1; i<=4; i++) carpetImgs["Walk_"+dir+"_"+i] = new Image();
+              }
+              carpetImgs["Static_"+curDirection].onload = function() {showSprite();}; //initial pose
+              for(let key in carpetImgs) {
+                carpetImgs[key].onerror = function(){handleImgError(this);};
+                carpetImgs[key].src = api+"transportation/magic_carpet/"+key+".png";
+              }
+            }
+            
+            function clickedMap(e)
+            {
+              let x = e.offsetX;
+              let y = e.offsetY;
+              walk(x,y);
+            }
+            
+            function walk(targetX, targetY)
+            {
+              if(walkTimer!=null) clearInterval(walkTimer);
+              walkTimer = setInterval(function() // executed every 10 milliseconds = 100 pixel per second
+              {
+                //get the direction to targetXY
+                let faceDir = "N";
+                let dx = targetX-curX;
+                let dy = targetY-curY;
+                if(dx==0 && dy<0) faceDir="N";
+                else if(dx>0 && dy<0) faceDir="NE";
+                else if(dx<0 && dy<0) faceDir="NW";
+                else if(dx==0 && dy>0) faceDir="S";
+                else if(dx>0 && dy>0) faceDir="SE";
+                else if(dx<0 && dy>0) faceDir="SW";
+                else if(dx>0 && dy==0) faceDir="E";
+                else if(dx<0 && dy==0) faceDir="W";
+                else faceDir=curDirection;
+                let Nx,Ny,NEx,NEy,Ex,Ey,SEx,SEy,Sx,Sy,SWx,SWy,Wx,Wy,NWx,NWy;
+                Nx=curX; Ny=curY-1; 
+                NEx=curX+1; NEy=curY-1; 
+                NWx=curX-1; NWy=curY-1; 
+                Sx=curX; Sy=curY+1; 
+                SEx=curX+1; SEy=curY+1; 
+                SWx=curX-1; SWy=curY+1; 
+                Ex=curX+1; Ey=curY; 
+                Wx=curX-1; Wy=curY; 
+                //get nextXY
+                let nextX, nextY;
+                switch(faceDir)
+                {
+                  case "N":nextX=Nx;nextY=Ny; break;
+                  case "NE":nextX=NEx;nextY=NEy; break;
+                  case "NW":nextX=NWx;nextY=NWy; break;
+                  case "S":nextX=Sx;nextY=Sy; break;
+                  case "SE":nextX=SEx;nextY=SEy; break;
+                  case "SW":nextX=SWx;nextY=SWy; break;
+                  case "E":nextX=Ex;nextY=Ey; break;
+                  case "W":nextX=Wx;nextY=Wy; break;
+                }
+                let reachedTarget = false;
+                let reachedNewMap = reachedNewMapBound(nextX, nextY);
+                //get next sprite name
+                if((nextX==targetX && nextY==targetY) || reachedNewMap!="") //reached target or dead end
+                {
+                  curSpriteName = "Static_"+faceDir; //stop the walk
+                  lastChangedSprite = curTimeMs();
+                  reachedTarget = true;
+                }
+                else if(curDirection!=faceDir) //change direction, must change sprite
+                {
+                  curSpriteName = "Walk_"+faceDir+"_1";
+                  lastChangedSprite = curTimeMs();
+                }
+                else if((curTimeMs()-lastChangedSprite) > 250)
+                {
+                  if(curSpriteName.startsWith("Walk") && curDirection==faceDir) //same dir, next frame
+                  {
+                    let sn= curSpriteName;
+                    let curNum = parseInt(sn.substring(sn.length-1));
+                    let nextNum;
+                    if(curNum==4) nextNum=1;
+                    else nextNum = curNum+1;
+                    curSpriteName=sn.substring(0,sn.lastIndexOf("_")+1)+nextNum; 
+                  }
+                  else curSpriteName = "Walk_"+faceDir+"_1"; //change direction
+                  lastChangedSprite = curTimeMs();
+                  
+                  //update effects next frame
+                  if(curEffectNum==10) curEffectNum=1;
+                  else curEffectNum++;
+                }
+                //else no change to sprite name
+                curDirection = faceDir;
+                positionSpriteOn(nextX,nextY);     
+                if(reachedTarget) {
+                  clearInterval(walkTimer);
+                  if(reachedNewMap!="") goToNewMap(reachedNewMap);
+                }
+              }, 10);
+            }
+            
+            const mapsLocation = 
+                  {
+                    "cornwall": {"x":358, "y":403, "initX":830 , "initY":1700 },
+                    "rome": {"x":850 , "y":1262, "initX":2320 , "initY":1333  },
+                    "athens": {"x":1228 , "y":1562, "initX":1600 , "initY":2800  },
+                    "rhodes": {"x":1494 , "y":1773, "initX":1980 , "initY":1700  },
+                    "hanging_garden_peak": {"x":1695 , "y":1710, "initX":730 , "initY":800  },
+                    "cairo": {"x":1609 , "y":2160, "initX":3250 , "initY":2000  }
+                  }
+            const bW = 70, bH = 50;
+            
+            function reachedNewMapBound(x, y)
+            {
+              if(!InWorldMap) return "";
+              for(let mapname in mapsLocation){
+                let m = mapsLocation[mapname];
+                if(x>=m.x && x<=(m.x+bW) && y>=m.y && y<=(m.y+bH)) return mapname;
+              }
+              return "";
+            }
+            
+            function goToNewMap(mapname)
+            {
+              currentMap = mapname;
+              InWorldMap = false;
+              mapImg.src = api+"map/"+mapname+".jpg";
+              geid("worldButton").style.visibility = "visible";
+              geid("mapname").innerHTML = mapname[0].toUpperCase() + mapname.substr(1).replaceAll("_"," ") + "  ";
+            }
+            
+            function clickedGoWorldMap()
+            {
+              clearInterval(walkTimer);
+              setTimeout(function(){goToWorldMap();}, 250);
+            }
+            
+            function goToWorldMap()
+            {
+              //clearInterval(walkTimer);
+              geid("worldButton").style.visibility = "hidden";
+              geid("mapname").innerHTML = "";
+              initX = mapsLocation[currentMap].x - 10; 
+              initY = mapsLocation[currentMap].y; - 10
+              currentMap = "world";
+              mapImg.src = api+"map/europe_stampped_crop.jpg";
+              InWorldMap = true;
+            }
+            
+            function initSpriteDropDown()
+            {
+              let dropdown = geid("char");
+              charNames.sort();
+              for(let v of charNames)
+              {
+                let option = document.createElement("option");
+                option.value = v;
+                let labelText = v.charAt(0).toUpperCase() + v.slice(1);
+                labelText = labelText.replace("_rebirth"," (R)");
+                option.text = labelText;
+                dropdown.add(option);
+              }
+              let savedBase = getCache("base");
+              if(savedBase && savedBase!==null && savedBase!="null") 
+              {
+                let option = document.createElement("option");
+                option.value = "player";
+                option.text = "Player";
+                dropdown.add(option, dropdown[0]);
+              }
+              //load from cache
+              let savedC = getCache("char");
+              if(savedC && (charNames.includes(savedC) || savedC=="player")) dropdown.value = savedC;
+              else dropdown.value = "clive";
+            }
+          
+            function refreshMainboxSize(){MB.style.height = (window.innerHeight - MB.getBoundingClientRect().top -10) +'px';}
+            function initView()
+            {
+              document.oncontextmenu=function(){return false;};
+              let urlParams = new URLSearchParams(window.location.search);
+              if(urlParams.has("char")) saveCache("char", urlParams.get("char")); //site is from wardrobe -> override saved cache
+              if(urlParams.has("m")) isMobileView = true;
+              geid("worldButton").style.visibility = "hidden";
+              mapImg.style.visibility = "hidden";
+              mapImg.onload = function()
+              {
+                spriteCanvas.height = mapImg.height;
+                spriteCanvas.width = mapImg.width;  
+                mapBox.style.maxHeight = mapImg.height +'px';
+                if(mapsLocation.hasOwnProperty(currentMap)) positionSpriteOn(mapsLocation[currentMap].initX, mapsLocation[currentMap].initY);
+                else positionSpriteOn(initX,initY);
+              };
+              mapImg.src = api+"map/europe_stampped_crop.jpg";
+              initSpriteDropDown();
+              initSprite();
+              initCarpet();
+              spriteCanvas.addEventListener("click",clickedMap);
+            }
+            window.onresize = function(){refreshMainboxSize(); mapBox.scrollTo(curX-200, curY-200);}; refreshMainboxSize();
+            initView();
+        </script>
+          
+    </body>
+</html>
