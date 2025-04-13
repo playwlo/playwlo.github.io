@@ -27,22 +27,6 @@ function handleImgError(err,imgN)
     console.log('imgerror:',err.target); 
     //imgN.src = "assets/transparent.png";
 }
-function loadImagesInSequence(images) 
-{
-    if (!images.length) return;
-    let topImgPair = images.shift();
-    let img = topImgPair[0];
-    if(topImgPair.length==3) 
-        img.onload = function(){
-            //[p.effectsImgs[n-1],          api+"player/effects/"+value+"/"+n+".png", [name,'effects',  n-1,        colorValue]]
-            //[p.av_spriteImgs[param][key], defSrc,                                   [name,'av_sprite',[param,key],colorValue]]
-            let c = topImgPair[2];
-            setColor(c[0],c[1],c[2],this,c[3]); //setColor(name,dictName,dictIndex,defImg,colorValue)
-            loadImagesInSequence(images);
-        };
-    else img.onload = function(){loadImagesInSequence(images);};
-    img.src = topImgPair[1];
-}
 function saveCache(key,val){localStorage[key] = val;}
 function getCache(key){return localStorage[key];}
 function hasCache(key){let v=getCache(key); return v && v!=null && v!='null' && v!='undefined';}
@@ -58,7 +42,6 @@ class Player
     nameWidth = 0;
     currentAction = ""; actionTimer = null;
     curWardrobeRes = "";
-    effectsImgSrcAry = []; av_spriteImgSrcAry = [];
     constructor(name, x0, y0, dir0) 
     {
         this.name = name;   
@@ -104,11 +87,6 @@ class Player
         this.currentAction = "stand";
         let p = this;
         this.actionTimer = setInterval(function(){if(document.visibilityState=="visible") animatePose(p,"Static",4);}, 250);
-    }
-    startLoadImages() //load defaults effectsImgSrcAry, av_spriteImgSrcAry, then color it if needed
-    {
-        loadImagesInSequence(this.effectsImgSrcAry);
-        loadImagesInSequence(this.av_spriteImgSrcAry);
     }
 }
 
@@ -208,14 +186,21 @@ function animatePose(p,actionName,maxFrame)
     else p.curEffectNum++;
 }
 
-function setColor(name,dictName,dictIndex,defImg,colorValue)
+function setColor(name,dictName,dictIndex,defSrc,colorValue)
 {
-    let dHeight = defImg.height;
-    let dWidth = defImg.width;
-    if(dWidth==0) return;
-    Promise.all([createImageBitmap(defImg,0,0,dWidth,dHeight)]).then((defBitmap) => {
-        myColorWorker.postMessage([name,dictName,dictIndex,defBitmap[0],dWidth,dHeight,colorValue]);
-    });
+    let img=new Image();
+    img.onload = function() 
+    {
+        let dHeight = this.height;
+        let dWidth = this.width;
+        if(dWidth==0) {setColor(name,dictName,dictIndex,defSrc,colorValue); return;}
+        Promise.all([createImageBitmap(this,0,0,dWidth,dHeight)]).then((defBitmap) => {
+            myColorWorker.postMessage([name,dictName,dictIndex,defBitmap[0],dWidth,dHeight,colorValue]);
+        });
+    };
+    img.onerror = function(err){handleImgError(err,this);};
+    img.crossOrigin = "Anonymous";
+    img.src = defSrc;
 }
 
 myColorWorker.onmessage = (e) => {
@@ -262,7 +247,6 @@ function initAvSprite(name)
             }
         }
     }
-    p.effectsImgSrcAry = []; p.av_spriteImgSrcAry = [];
     for(let folderName of imageFolders)
     {
         let param = folderName, value, colorValue;
@@ -283,8 +267,8 @@ function initAvSprite(name)
             {
                 if(p.effectsImgs.length==0) for(let n=1; n<=10; n++) p.effectsImgs.push(new Image());
                 if(colorValue && colorValue!=null && colorValue!='null')  //have color, dont put defsrc
-                    for(let n=1; n<=10; n++) p.effectsImgSrcAry.push([p.effectsImgs[n-1], api+"player/effects/"+value+"/"+n+".png", [name,'effects',n-1,colorValue]]);
-                else for(let n=1; n<=10; n++) p.effectsImgSrcAry.push([p.effectsImgs[n-1], api+"player/effects/"+value+"/"+n+".png"]); //no recolor, use defsrc
+                    for(let n=1; n<=10; n++) setColor(name,'effects',n-1,api+"player/effects/"+value+"/"+n+".png",colorValue);
+                else for(let n=1; n<=10; n++) p.effectsImgs[n-1].src = api+"player/effects/"+value+"/"+n+".png"; //no recolor, use defsrc
             }
             else p.effectsImgs = [];
             continue;
@@ -300,14 +284,11 @@ function initAvSprite(name)
         {
             let defSrc = imgpath? imgpath+key+".png" : 'assets/transparent.png'; 
             if(colorValue && colorValue!=null && colorValue!='null') //have color, dont put defsrc
-                p.av_spriteImgSrcAry.push([p.av_spriteImgs[param][key], defSrc, [name,'av_sprite',[param,key],colorValue]]);
-                //setColor(name,'av_sprite',[param,key],defSrc,colorValue);//(p.av_spriteImgs[param][key], colorValue);
-            else p.av_spriteImgSrcAry.push([p.av_spriteImgs[param][key], defSrc]);
-            //p.av_spriteImgs[param][key].src = defSrc;//no recolor, use defsrc
+                setColor(name,'av_sprite',[param,key],defSrc,colorValue);//(p.av_spriteImgs[param][key], colorValue);
+            else p.av_spriteImgs[param][key].src = defSrc;//no recolor, use defsrc
         }
     }
     if(name==MainPlayer.name) postWardrobe();
-    p.startLoadImages();
 }
 
 function changeChar()
