@@ -1,0 +1,55 @@
+#scrollbox {
+    overflow: scroll;
+}
+
+ul.icons li {
+	width: 45mm; /* adjust the size of the catalog block */
+    display: inline-block; /* this creates the catalog effect */
+    text-align: center; /* align the image to center */
+    font-family: "Trebuchet MS", Helvetica, sans-serif; 
+    /*border: 0.3mm solid #585858; /* border and color */
+}
+
+ul.icons img 
+{ 
+	max-height: 35mm;
+  	max-width: 41mm;
+  	margin-left: 2mm;
+}
+
+ul.icons p
+{
+	margin-top: 0mm;
+	margin-bottom: 2mm;
+}
+
+ul.icons div
+{
+	height: 35px;
+	width: 41mm;
+	display: table-cell;
+	vertical-align: middle;
+}
+
+
+ul.icons h4 
+{
+	margin-top: 1mm;
+	margin-bottom: 2mm;
+}
+
+body 
+{
+ 	/*background-image: url(aemlogo.png);
+ 	background-repeat: no-repeat;
+ 	background-attachment: fixed;
+	background-position: center;*/
+}
+
+@page
+{
+	margin-top: 1cm;
+	margin-bottom: 0cm;
+	margin-left: 0cm;
+	margin-right: 0cm;
+}

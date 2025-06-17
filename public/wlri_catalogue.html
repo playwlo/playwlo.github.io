@@ -1,0 +1,45 @@
+<html>
+    <head>
+        <link rel="stylesheet" type="text/css" href="data/catalogue.css">
+        <title>WEARABLES</title></head>
+    <body>
+        <select id="dropdown" onchange="loadWearables(this.value)">
+            <option value="0">Select wearables</option>
+            <option value="arm">arm</option>
+            <option value="body">body</option>
+            <option value="hand">hand</option>
+            <option value="head">head</option>
+            <option value="shoes">shoes</option>
+            <option value="special">special</option>
+        </select><p></p>
+        <div id="scrollbox">
+            <ul class="icons" id="UL"></ul>
+        </div>
+        <script src="data/catalogue.js"></script>
+        <script>
+            const SB = document.getElementById("scrollbox");
+            const UL = document.getElementById("UL");
+            function refreshScrollboxSize(){SB.style.height = (window.innerHeight - SB.getBoundingClientRect().top - 10) +'px';}
+          
+            function loadWearables(cat)
+            {
+                SB.scrollTop = 0;
+                UL.innerHTML = "";
+                if(cat=='0') return;
+                let array = wearables[cat];
+                for(let row of array)
+                {
+                    let li = document.createElement("li");
+                    li.innerHTML =  "<div><img src='assets/icons/"+row['icon']+".png'></div>"+
+                                    "<h4>"+row['id']+"</h4>"+
+                                    "<p>"+row['name']+"</p>";
+                    UL.appendChild(li);
+                }
+
+            }
+
+            window.onresize = function(){refreshScrollboxSize();}
+            refreshScrollboxSize();
+        </script>
+    </body>
+</html>
