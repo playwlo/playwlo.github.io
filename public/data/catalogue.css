@@ -3,7 +3,7 @@
 }
 
 ul.icons li {
-	width: 45mm; /* adjust the size of the catalog block */
+	width: 35mm; /* adjust the size of the catalog block */
     display: inline-block; /* this creates the catalog effect */
     text-align: center; /* align the image to center */
     font-family: "Trebuchet MS", Helvetica, sans-serif; 

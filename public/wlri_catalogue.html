@@ -1,9 +1,9 @@
 <html>
     <head>
         <link rel="stylesheet" type="text/css" href="data/catalogue.css">
-        <title>WEARABLES</title></head>
+        <title>WLRI CATALOGUE</title></head>
     <body>
-        <select id="dropdown" onchange="loadWearables(this.value)">
+        <select id="dropdown1" onchange="loadWearables(this.value)">
             <option value="0">Select wearables</option>
             <option value="arm">arm</option>
             <option value="body">body</option>
@@ -11,7 +11,38 @@
             <option value="head">head</option>
             <option value="shoes">shoes</option>
             <option value="special">special</option>
-        </select><p></p>
+        </select>
+        <select id="dropdown2" onchange="loadFurnitures(this.value)">
+            <option value="0">Select furniture</option>
+            <option value="animals">animals</option>
+            <option value="bins">bins</option>
+            <option value="carpets">carpets</option>
+            <option value="celebrations">celebrations</option>
+            <option value="decorations">decorations</option>
+            <option value="gadgets">gadgets</option>
+            <option value="fences">fences</option>
+            <option value="flooring">flooring</option>
+            <option value="flowers">flowers</option>
+            <option value="kitchen">kitchen</option>
+            <option value="lights">lights</option>
+            <option value="maids">maids</option>
+            <option value="partitions">partitions</option>
+            <option value="shelves">shelves</option>
+            <option value="sitables">sitables</option>
+            <option value="statues">statues</option>
+            <option value="tables">tables</option>
+            <option value="toilet">toilet</option>
+            <option value="wall decors">wall decors</option>
+            <option value="wallpapers">wallpapers</option>
+            <option value="windows">windows</option>
+        </select>
+        <select id="dropdown3" onchange="loadVehicles(this.value)">
+            <option value="0">Select vehicle</option>
+            <option value="land">land</option>
+            <option value="air">air</option>
+            <option value="water">water</option>
+        </select>
+        <p></p>
         <div id="scrollbox">
             <ul class="icons" id="UL"></ul>
         </div>
@@ -23,6 +54,8 @@
           
             function loadWearables(cat)
             {
+                document.getElementById("dropdown2").value = 0;
+                document.getElementById("dropdown3").value = 0;
                 SB.scrollTop = 0;
                 UL.innerHTML = "";
                 if(cat=='0') return;
@@ -35,7 +68,42 @@
                                     "<p>"+row['name']+"</p>";
                     UL.appendChild(li);
                 }
-
+            }
+            function loadFurnitures(cat)
+            {
+                document.getElementById("dropdown1").value = 0;
+                document.getElementById("dropdown3").value = 0;
+                SB.scrollTop = 0;
+                UL.innerHTML = "";
+                if(cat=='0') return;
+                let array = furnitures.ary;
+                for(let row of array)
+                {
+                    if(row['c'] != cat) continue;
+                    let li = document.createElement("li");
+                    li.innerHTML =  "<div><img src='assets/tent/groups/"+cat+"/"+row['icon']+".png'></div>"+
+                                    "<h4>"+row['id']+"</h4>"+
+                                    "<p>"+row['name']+"</p>";
+                    UL.appendChild(li);
+                }
+            }
+            function loadVehicles(cat)
+            {
+                document.getElementById("dropdown1").value = 0;
+                document.getElementById("dropdown2").value = 0;
+                SB.scrollTop = 0;
+                UL.innerHTML = "";
+                if(cat=='0') return;
+                let array = vehicles.ary;
+                for(let row of array)
+                {
+                    if(row['c'] != cat) continue;
+                    let li = document.createElement("li");
+                    li.innerHTML =  "<div><img src='assets/tent/groups/vehicle/"+row['ic']+".png'></div>"+
+                                    "<h4>"+row['id']+"</h4>"+
+                                    "<p>"+row['n']+"</p>";
+                    UL.appendChild(li);
+                }
             }
 
             window.onresize = function(){refreshScrollboxSize();}
