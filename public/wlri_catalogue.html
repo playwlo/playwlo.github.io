@@ -43,6 +43,13 @@
             <option value="air">air</option>
             <option value="water">water</option>
         </select>
+        <select id="dropdown4" onchange="loadNPC(this.value)">
+            <option value="0">Select npc</option>
+            <option value="animals">animals</option>
+            <option value="npc">npc</option>
+            <option value="others">others</option>
+            <option value="pets">pets</option>
+        </select>
         <p></p>
         <div id="scrollbox">
             <ul class="icons" id="UL"></ul>
@@ -57,6 +64,7 @@
             {
                 document.getElementById("dropdown2").value = 0;
                 document.getElementById("dropdown3").value = 0;
+                document.getElementById("dropdown4").value = 0;
                 SB.scrollTop = 0;
                 UL.innerHTML = "";
                 if(cat=='0') return;
@@ -74,6 +82,7 @@
             {
                 document.getElementById("dropdown1").value = 0;
                 document.getElementById("dropdown3").value = 0;
+                document.getElementById("dropdown4").value = 0;
                 SB.scrollTop = 0;
                 UL.innerHTML = "";
                 if(cat=='0') return;
@@ -92,6 +101,7 @@
             {
                 document.getElementById("dropdown1").value = 0;
                 document.getElementById("dropdown2").value = 0;
+                document.getElementById("dropdown4").value = 0;
                 SB.scrollTop = 0;
                 UL.innerHTML = "";
                 if(cat=='0') return;
@@ -102,6 +112,25 @@
                     let li = document.createElement("li");
                     li.innerHTML =  "<div><img src='assets/tent/groups/vehicle/"+row['ic']+".png'></div>"+
                                     "<h4>"+row['id']+"</h4>"+
+                                    "<p>"+row['n']+"</p>";
+                    UL.appendChild(li);
+                }
+            }
+            function loadNPC(cat)
+            {
+                document.getElementById("dropdown1").value = 0;
+                document.getElementById("dropdown2").value = 0;
+                document.getElementById("dropdown3").value = 0;
+                SB.scrollTop = 0;
+                UL.innerHTML = "";
+                if(cat=='0') return;
+                let array = npc.ary;
+                for(let row of array)
+                {
+                    if(row['c'] != cat) continue;
+                    let li = document.createElement("li");
+                    li.innerHTML =  "<div><img src='assets/icons/npc/"+cat+"/"+row['ic']+".png'></div>"+
+                                    "<h4>"+row['i']+"</h4>"+
                                     "<p>"+row['n']+"</p>";
                     UL.appendChild(li);
                 }
