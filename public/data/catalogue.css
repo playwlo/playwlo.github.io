@@ -2,6 +2,24 @@
     overflow: scroll;
 }
 
+#mapbox {
+	display: flex;
+	position: relative;
+}
+
+#pointsLayer {
+	position: absolute;
+	display: flex;
+}
+
+#pointsLayer label{
+	position: absolute;
+}
+
+.hoverPoints:hover{
+	border: dashed white;
+}
+
 ul.icons li {
 	width: 35mm; /* adjust the size of the catalog block */
     display: inline-block; /* this creates the catalog effect */

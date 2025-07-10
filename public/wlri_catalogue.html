@@ -50,18 +50,57 @@
             <option value="others">others</option>
             <option value="pets">pets</option>
         </select>
+        <button onclick="loadMap()">Maps</button>
+        <label id="maptip">Hover/Click on building icons / brown wheels</label>
         <p></p>
         <div id="scrollbox">
             <ul class="icons" id="UL"></ul>
+            <div id="mapbox">
+                <div id="pointsLayer"></div>
+                <img src="assets/map/World_map.webp"/>
+            </div>
         </div>
+        <dialog id="mapDialog">
+            <p id="labelText">No map selected</p>
+            <form method="dialog">
+                <button onclick="closeDialog()">OK</button>
+            </form>
+        </dialog>
+        
+
         <script src="data/catalogue.js"></script>
         <script>
             const SB = document.getElementById("scrollbox");
             const UL = document.getElementById("UL");
+            const MB = document.getElementById("mapbox");
+            const PL = document.getElementById("pointsLayer");
+            const MT = document.getElementById("maptip");
+            const LT = document.getElementById("labelText");
+            const MD = document.getElementById("mapDialog");
             function refreshScrollboxSize(){SB.style.height = (window.innerHeight - SB.getBoundingClientRect().top - 10) +'px';}
           
+            function showMapView(yes)
+            {
+                if(yes){
+                    document.getElementById("dropdown1").value = 0;
+                    document.getElementById("dropdown2").value = 0;
+                    document.getElementById("dropdown3").value = 0;
+                    document.getElementById("dropdown4").value = 0;
+                    SB.scrollTop = 0;
+                    UL.innerHTML = "";
+                    MB.style.display = "flex";
+                    MT.style.visibility = "visible";
+                }
+                else{
+                    MB.style.display = "none";
+                    MT.style.visibility = "hidden";
+                }
+            }
+            function showDialog(str){LT.innerHTML = str; MD.showModal();}
+            function closeDialog(){MD.close();}
             function loadWearables(cat)
             {
+                showMapView(false);
                 document.getElementById("dropdown2").value = 0;
                 document.getElementById("dropdown3").value = 0;
                 document.getElementById("dropdown4").value = 0;
@@ -80,6 +119,7 @@
             }
             function loadFurnitures(cat)
             {
+                showMapView(false);
                 document.getElementById("dropdown1").value = 0;
                 document.getElementById("dropdown3").value = 0;
                 document.getElementById("dropdown4").value = 0;
@@ -99,6 +139,7 @@
             }
             function loadVehicles(cat)
             {
+                showMapView(false);
                 document.getElementById("dropdown1").value = 0;
                 document.getElementById("dropdown2").value = 0;
                 document.getElementById("dropdown4").value = 0;
@@ -118,6 +159,7 @@
             }
             function loadNPC(cat)
             {
+                showMapView(false);
                 document.getElementById("dropdown1").value = 0;
                 document.getElementById("dropdown2").value = 0;
                 document.getElementById("dropdown3").value = 0;
@@ -136,8 +178,28 @@
                 }
             }
 
+            function loadMap()
+            {
+                showMapView(true);
+                //load hover points
+                for(let row of mapPoints.ary)
+                {
+                    let label = document.createElement("label");
+                    label.className = "hoverPoints";
+                    label.style.width = "12px";
+                    label.style.height = "12px";
+                    label.style.left = (row['x']-6)+"px";
+                    label.style.top = (row['y']-6)+"px";
+                    let text = row['n']+": "+row['i'];
+                    label.title = text;
+                    label.onclick = function(){showDialog(text);};
+                    PL.appendChild(label);//console.log("added label");
+                }
+            }
+
             window.onresize = function(){refreshScrollboxSize();}
             refreshScrollboxSize();
+            showMapView(false);
         </script>
     </body>
 </html>
